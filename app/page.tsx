@@ -5,9 +5,16 @@ import { IEvent } from "@/database"
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL
 
+if (!process.env.BASE_URL) console.warn('NEXT_PUBLIC_URL is not set')
+
 const page = async () => {
 
   const response = await fetch(`${BASE_URL}/api/events`)
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch events: ${response.status}`)
+  }
+
   const { events } = await response.json()
 
   return (
