@@ -46,7 +46,7 @@ export async function GET(
 
     } catch (error) {
         if (process.env.NODE_ENV === 'development') {
-            console.error('Error fetahing events by slug: ', error)
+            console.error('Error fetching events by slug: ', error)
         }
 
         if (error instanceof Error) {
