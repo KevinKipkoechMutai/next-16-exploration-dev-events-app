@@ -9,20 +9,23 @@ export async function POST(req: NextRequest) {
 
         const formData = await req.formData()
 
-        let event
-
-        try {
-            event = Object.fromEntries(formData.entries())
-        } catch (e) {
-            return NextResponse.json({message: "Invalid file format"}, {status: 400})
-        }
+        const event = Object.fromEntries(formData.entries())
 
         const file = formData.get('image') as File
 
         if (!file) return NextResponse.json({message: "Image file is required"}, {status: 400})
 
-        let tags = JSON.parse(formData.get('tags') as string)
-        let agenda = JSON.parse(formData.get('agenda') as string)
+        let tags, agenda
+
+        try {
+            tags =  JSON.parse(formData.get('tags') as string)
+            agenda = JSON.parse(formData.get('agenda') as string)
+        } catch (e) {
+            return NextResponse.json(
+                {message: "Invalid JSON format for tags or agenda"},
+                { status: 400 }
+            )
+        }
 
         const arrayBuffer = await file.arrayBuffer()
         const buffer = Buffer.from(arrayBuffer)
@@ -34,6 +37,13 @@ export async function POST(req: NextRequest) {
                 resolve(results)
             }).end(buffer);
         })
+
+        if (!uploadResult || typeof uploadResult !== 'object' || !('secure_url' in uploadResult)) {
+            return NextResponse.json(
+                {message: "Failed to upload image to cloudinary"},
+                {status: 500}
+            )
+        }
 
         event.image = (uploadResult as { secure_url: string }).secure_url
 
@@ -47,7 +57,7 @@ export async function POST(req: NextRequest) {
 
     } catch (e) {
         console.error(e)
-        return NextResponse.json({message: "Event creation failed", error: e instanceof Error ? e.message: 'Unknown'})
+        return NextResponse.json({message: "Event creation failed", error: e instanceof Error ? e.message: 'Unknown'}, {status: 500})
     }
 }
 
