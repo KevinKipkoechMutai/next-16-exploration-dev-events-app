@@ -11,10 +11,7 @@ const page = async () => {
 
   const response = await fetch(`${BASE_URL}/api/events`)
 
-  if (!response.ok) {
-    throw new Error(`Failed to fetch events: ${response.status}`)
-  }
-
+  console.log(response)
   const { events } = await response.json()
 
   return (

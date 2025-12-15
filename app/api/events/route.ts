@@ -1,76 +1,83 @@
 import { NextRequest, NextResponse } from "next/server";
-import connectDB from '@/lib/mongodb'
-import Event from '@/database/event.model'
-import { v2 as cloudinary } from 'cloudinary'
+import { v2 as cloudinary } from 'cloudinary';
+
+import connectDB from "@/lib/mongodb";
+import Event from '@/database/event.model';
+
+// Force Node.js runtime for Buffer and full File support
+export const runtime = 'nodejs';
 
 export async function POST(req: NextRequest) {
     try {
-        await connectDB()
+        await connectDB();
 
-        const formData = await req.formData()
+        const formData = await req.formData();
 
-        const event = Object.fromEntries(formData.entries())
+        console.log('All entries received:');
+        for (const [key, value] of formData.entries()) {
+        if (value instanceof File) {
+            console.log(key, `File: ${value.name}, ${value.size} bytes, type: ${value.type}`);
+        } else {
+            console.log(key, value);
+        }
+        }
 
-        const file = formData.get('image') as File
+        const file = formData.get('image');
 
-        if (!file) return NextResponse.json({message: "Image file is required"}, {status: 400})
+        if (!file || !(file instanceof File)) {
+            return NextResponse.json({ message: 'Image file is required' }, { status: 400 });
+        }
 
-        let tags, agenda
+        // Parse other fields safely
+        const tagsStr = formData.get('tags') as string | null;
+        const agendaStr = formData.get('agenda') as string | null;
 
+        if (!tagsStr || !agendaStr) {
+            return NextResponse.json({ message: 'Tags and agenda are required' }, { status: 400 });
+        }
+
+        let tags, agenda;
         try {
-            tags =  JSON.parse(formData.get('tags') as string)
-            agenda = JSON.parse(formData.get('agenda') as string)
+            tags = JSON.parse(tagsStr);
+            agenda = JSON.parse(agendaStr);
         } catch (e) {
-            return NextResponse.json(
-                {message: "Invalid JSON format for tags or agenda"},
-                { status: 400 }
-            )
+            return NextResponse.json({ message: 'Invalid tags or agenda format' }, { status: 400 });
         }
 
-        const arrayBuffer = await file.arrayBuffer()
-        const buffer = Buffer.from(arrayBuffer)
+        // Convert File to Buffer
+        const arrayBuffer = await file.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
 
-        const uploadResult = await new Promise((resolve, reject) => {
-            cloudinary.uploader.upload_stream({ resource_type: 'image', folder: 'DevEvent' }, (error, results) => {
-                if (error) return reject(error);
+        // Upload to Cloudinary
+        const uploadResult: any = await new Promise((resolve, reject) => {
+            cloudinary.uploader.upload_stream(
+                { resource_type: 'image', folder: 'DevEvent' },
+                (error, result) => {
+                    if (error) reject(error);
+                    else resolve(result);
+                }
+            ).end(buffer);
+        });
 
-                resolve(results)
-            }).end(buffer);
-        })
-
-        if (!uploadResult || typeof uploadResult !== 'object' || !('secure_url' in uploadResult)) {
-            return NextResponse.json(
-                {message: "Failed to upload image to cloudinary"},
-                {status: 500}
-            )
-        }
-
-        event.image = (uploadResult as { secure_url: string }).secure_url
+        // Create event (spread the rest of the form fields)
+        const eventData = Object.fromEntries(formData.entries());
+        delete eventData.image; // Remove the file entry if you don't want it in DB
+        delete eventData.tags;
+        delete eventData.agenda;
 
         const createdEvent = await Event.create({
-            ...event,
-            tags: tags,
-            agenda: agenda,
-        })
+            ...eventData,
+            image: uploadResult.secure_url,
+            tags,
+            agenda,
+        });
 
-        return NextResponse.json({ message: 'Event created successfully', event: createdEvent }, { status: 201 })
-
+        return NextResponse.json({ message: 'Event created successfully', event: createdEvent }, { status: 201 });
     } catch (e) {
-        console.error(e)
-        return NextResponse.json({message: "Event creation failed", error: e instanceof Error ? e.message: 'Unknown'}, {status: 500})
-    }
-}
-
-
-export async function GET() {
-    try {
-        await connectDB()
-
-        const events = await Event.find().sort({ createdAt: -1 })
-
-        return NextResponse.json({ message: 'Events fetched successfully', events }, { status: 200 })
-
-    } catch (e) {
-        return NextResponse.json({ message: 'Event fetching failed', error: e }, { status: 500 })
+        console.error(e);
+        return NextResponse.json(
+            { message: 'Event Creation Failed', error: e instanceof Error ? e.message : 'Unknown' },
+            { status: 500 }
+        );
     }
 }
