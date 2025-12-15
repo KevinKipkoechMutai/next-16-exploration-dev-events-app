@@ -13,6 +13,7 @@ if (!process.env.BASE_URL) console.warn('NEXT_PUBLIC_URL is not set')
 const EventDetailItem = ({ icon, alt, label }: { icon: string; alt: string; label: string; }) => (
   <div className=" flex-row-gap-2 items-center">
     <Image src={icon} alt={alt} width={17} height={17}/>
+    <p>{label}</p>
   </div>
 )
 
@@ -69,7 +70,9 @@ const EventDetails = async ({ params }: { params: Promise<string> }) => {
   const { description, image, overview, date, time, location, mode, agenda, audience, tags, organizer } = event
 
   if (!description) return notFound()
-
+  
+  console.log(`${date} ${time}`)
+  
   const bookings = 10
 
   const similarEvents: IEvent[] = await getSimilarEventsBySlug(slug)

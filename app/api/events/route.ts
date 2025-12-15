@@ -4,23 +4,12 @@ import { v2 as cloudinary } from 'cloudinary';
 import connectDB from "@/lib/mongodb";
 import Event from '@/database/event.model';
 
-// Force Node.js runtime for Buffer and full File support
-export const runtime = 'nodejs';
 
 export async function POST(req: NextRequest) {
     try {
         await connectDB();
 
         const formData = await req.formData();
-
-        console.log('All entries received:');
-        for (const [key, value] of formData.entries()) {
-        if (value instanceof File) {
-            console.log(key, `File: ${value.name}, ${value.size} bytes, type: ${value.type}`);
-        } else {
-            console.log(key, value);
-        }
-        }
 
         const file = formData.get('image');
 
@@ -79,5 +68,17 @@ export async function POST(req: NextRequest) {
             { message: 'Event Creation Failed', error: e instanceof Error ? e.message : 'Unknown' },
             { status: 500 }
         );
+    }
+}
+
+export async function GET() {
+    try {
+        await connectDB();
+
+        const events = await Event.find().sort({ createdAt: -1 });
+
+        return NextResponse.json({ message: 'Events fetched successfully', events }, { status: 200 });
+    } catch (e) {
+        return NextResponse.json({ message: 'Event fetching failed', error: e }, { status: 500 });
     }
 }
