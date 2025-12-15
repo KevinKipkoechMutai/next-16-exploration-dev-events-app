@@ -71,8 +71,6 @@ const EventDetails = async ({ params }: { params: Promise<string> }) => {
 
   if (!description) return notFound()
   
-  console.log(`${date} ${time}`)
-  
   const bookings = 10
 
   const similarEvents: IEvent[] = await getSimilarEventsBySlug(slug)
