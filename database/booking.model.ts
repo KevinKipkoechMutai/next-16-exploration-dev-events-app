@@ -32,45 +32,45 @@ const BookingSchema = new Schema<IBooking>(
     },
   },
   {
-    timestamps: true, // Auto-generate createdAt and updatedAt
+    timestamps: true,
   }
 );
 
-// Pre-save hook to validate events exists before creating booking
-BookingSchema.pre('save', async function (next) {
+// Pre-save hook: Validate that the referenced Event exists
+// Modern Mongoose style: async function, no `next` parameter or call
+BookingSchema.pre('save', async function () {
   const booking = this as IBooking;
 
-  // Only validate eventId if it's new or modified
-  if (booking.isModified('eventId') || booking.isNew) {
-    try {
-      const eventExists = await Event.findById(booking.eventId).select('_id');
-
-      if (!eventExists) {
-        const error = new Error(`Event with ID ${booking.eventId} does not exist`);
-        error.name = 'ValidationError';
-        return next(error);
-      }
-    } catch {
-      const validationError = new Error('Invalid events ID format or database error');
-      validationError.name = 'ValidationError';
-      return next(validationError);
-    }
+  // Only check if eventId is new or modified
+  if (!booking.isNew && !booking.isModified('eventId')) {
+    return; // Skip validation if unchanged
   }
 
-  next();
+  try {
+    const eventExists = await Event.findById(booking.eventId).select('_id').lean();
+
+    if (!eventExists) {
+      // Throw a validation error — Mongoose will catch and return it properly
+      throw new Error(`Event with ID ${booking.eventId} does not exist`);
+    }
+  } catch (err) {
+    // Re-throw as ValidationError so it appears in validation errors
+    const validationError = new Error(
+      err instanceof Error ? err.message : 'Invalid event ID or database error'
+    );
+    validationError.name = 'ValidationError';
+    throw validationError;
+  }
+
+  // No next() needed — Mongoose automatically continues if no error thrown
 });
 
-// Create index on eventId for faster queries
+// Indexes (all good — keep them)
 BookingSchema.index({ eventId: 1 });
-
-// Create compound index for common queries (events bookings by date)
 BookingSchema.index({ eventId: 1, createdAt: -1 });
-
-// Create index on email for user booking lookups
 BookingSchema.index({ email: 1 });
-
-// Enforce one booking per events per email
 BookingSchema.index({ eventId: 1, email: 1 }, { unique: true, name: 'uniq_event_email' });
+
 const Booking = models.Booking || model<IBooking>('Booking', BookingSchema);
 
 export default Booking;
